@@ -1,24 +1,45 @@
-// Variables globales (nombres en castellano)
+// Variables globales
 let lectorHtml5 = null;
+let escaneando = false;          // evita múltiples detecciones
 const zonaEscaner = document.getElementById("zona-escaner");
 const resultado = document.getElementById("resultado");
 const codigoLeido = document.getElementById("codigo-leido");
 const infoProducto = document.getElementById("info-producto");
 const enlaceDirecto = document.getElementById("enlace-directo");
 
-// Iniciar escáner
+// Botones
 document.getElementById("btn-escanear").addEventListener("click", iniciarEscaner);
 document.getElementById("btn-parar").addEventListener("click", detenerEscaner);
 document.getElementById("btn-nuevo").addEventListener("click", reiniciar);
 
+// También permitimos escribir el código a mano (muy útil en iPhone)
+document.getElementById("btn-manual")?.addEventListener("click", () => {
+  const codigo = document.getElementById("input-manual").value.trim();
+  if (codigo.length >= 8) {
+    detenerEscaner();
+    procesarCodigo(codigo);
+  } else {
+    alert("Escribe un código de barras válido (mínimo 8 dígitos)");
+  }
+});
+
 async function iniciarEscaner() {
+  if (escaneando) return;
+  escaneando = true;
+
   document.getElementById("btn-escanear").style.display = "none";
   document.getElementById("btn-parar").style.display = "block";
 
   lectorHtml5 = new Html5Qrcode("lector");
+
   const configuracion = {
-    fps: 12,                    // equilibrio velocidad / batería
-    qrbox: { width: 280, height: 160 },
+    fps: 15,
+    qrbox: { width: 320, height: 140 },   // rectangular → mejor para EAN
+    aspectRatio: 1.777,
+    disableFlip: false,
+    experimentalFeatures: {
+      useBarCodeDetectorIfSupported: true
+    },
     formatsToSupport: [
       Html5QrcodeSupportedFormats.EAN_13,
       Html5QrcodeSupportedFormats.EAN_8,
@@ -30,21 +51,39 @@ async function iniciarEscaner() {
 
   try {
     await lectorHtml5.start(
-      { facingMode: "environment" }, // cámara trasera
+      { facingMode: "environment" },
       configuracion,
-      (codigo) => {
+      (codigo, resultado) => {
+        // Solo procesamos la primera detección
+        if (!escaneando) return;
+        escaneando = false;
         detenerEscaner();
         procesarCodigo(codigo);
       },
-      () => {} // error de frame (ignorar)
+      (error) => {
+        // Ignoramos errores de frame (normal)
+      }
     );
+
+    // Intento de mejorar el foco en iOS (a veces ayuda)
+    setTimeout(() => {
+      try {
+        const track = lectorHtml5.getRunningTrackCameraCapabilities?.();
+        if (track) {
+          // no siempre disponible, pero no pasa nada si falla
+        }
+      } catch (e) {}
+    }, 1000);
+
   } catch (err) {
+    console.error(err);
     alert("No se pudo acceder a la cámara. Revisa los permisos de Safari.");
     reiniciar();
   }
 }
 
 function detenerEscaner() {
+  escaneando = false;
   if (lectorHtml5) {
     lectorHtml5.stop().then(() => {
       lectorHtml5.clear();
@@ -60,6 +99,8 @@ function reiniciar() {
   zonaEscaner.classList.remove("oculto");
   infoProducto.innerHTML = "";
   enlaceDirecto.style.display = "none";
+  document.getElementById("input-manual").value = "";
+  escaneando = false;
 }
 
 async function procesarCodigo(codigo) {
@@ -68,45 +109,35 @@ async function procesarCodigo(codigo) {
   codigoLeido.textContent = codigo;
   infoProducto.innerHTML = `<p class="cargando">Buscando en comicstores.es…</p>`;
 
-  // 1. Intentamos búsqueda directa por el código (texto=)
   const urlBusqueda = `https://comicstores.es/busqueda/listaLibros.php?texto=${encodeURIComponent(codigo)}`;
-  // Proxy CORS gratuito y rápido (allorigins)
   const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(urlBusqueda)}`;
 
   try {
-    const respuesta = await fetch(proxy, { signal: AbortSignal.timeout(8000) });
+    const respuesta = await fetch(proxy, { signal: AbortSignal.timeout(9000) });
     const html = await respuesta.text();
 
-    // Parsing ultra-ligero (prioridad velocidad)
-    const tituloMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/i) ||
-                        html.match(/class="[^"]*titulo[^"]*"[^>]*>([^<]+)</i);
     const precios = [...html.matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2})\s*€/g)].map(m => m[1]);
 
     if (precios.length >= 1) {
-      // El precio más alto suele ser el PVP sin descuento
-      const preciosNum = precios.map(p => parseFloat(p.replace(".", "").replace(",", ".")));
+      const preciosNum = precios.map(p => parseFloat(p.replace(/\./g, "").replace(",", ".")));
       const pvp = Math.max(...preciosNum);
       const web = Math.min(...preciosNum);
 
-      const titulo = tituloMatch ? tituloMatch[1].trim() : "Producto encontrado";
-
       infoProducto.innerHTML = `
-        <p class="titulo-prod">${titulo}</p>
+        <p class="titulo-prod">Producto encontrado</p>
         <p class="pvp">${pvp.toFixed(2).replace(".", ",")} €</p>
         <p class="precio-web">Precio web: ${web.toFixed(2).replace(".", ",")} €</p>
-        <p style="font-size:0.85rem;opacity:0.6;margin-top:8px">PVP = precio sin el descuento de la web</p>
+        <p style="font-size:0.85rem;opacity:0.6;margin-top:8px">PVP = precio sin descuento web</p>
       `;
 
-      // Enlace a la búsqueda (o a la ficha si se detecta)
       enlaceDirecto.href = urlBusqueda;
       enlaceDirecto.style.display = "block";
       enlaceDirecto.textContent = "Ver resultados en Comic Stores";
     } else {
-      // Fallback: abrir Google restringido
       mostrarFallback(codigo);
     }
   } catch (e) {
-    console.warn("Error de red o proxy:", e);
+    console.warn(e);
     mostrarFallback(codigo);
   }
 }
