@@ -2,7 +2,7 @@
 
 // IMPORTANTE: pega aquí la URL pública de tu Cloudflare Worker.
 // Ejemplo: https://pvp-comicstores.tuusuario.workers.dev
-const API_URL = 'PEGA_AQUI_LA_URL_DEL_WORKER';
+const API_URL = 'buscadorpvp.carlos-moreno.workers.dev';
 
 const zonaEscaner = document.getElementById('zona-escaner');
 const resultado = document.getElementById('resultado');
