@@ -256,7 +256,7 @@ async function procesarCodigo(codigo) {
   codigoLeido.textContent = codigo;
   zonaEscaner.classList.add('oculto');
   resultado.classList.remove('oculto');
-  mostrarCargando('Buscando el PVP en comicstores.es...');
+  mostrarCargando('Buscando el PVP y la imagen en comicstores.es...');
 
   enlaceDirecto.href = `https://comicstores.es/busqueda/listaLibros.php?tipoBus=full&palabrasBusqueda=${encodeURIComponent(codigo)}`;
   enlaceDirecto.style.display = 'block';
@@ -272,7 +272,17 @@ async function procesarCodigo(codigo) {
 
     enlaceDirecto.href = datos.url || enlaceDirecto.href;
     const titulo = limpiarTexto(datos.titulo) || 'Producto encontrado';
+    const imagen = urlSegura(datos.imagen);
+    const bloqueImagen = imagen
+      ? `<figure class="producto-imagen-wrap">
+           <img class="producto-imagen" src="${escapar(imagen)}" alt="${escapar(titulo)}" loading="eager" referrerpolicy="no-referrer"
+                onerror="this.closest('figure').style.display='none'">
+           <figcaption>Imagen de la ficha del producto</figcaption>
+         </figure>`
+      : '<p class="sin-imagen">La ficha no tiene una imagen disponible.</p>';
+
     infoProducto.innerHTML = `
+      ${bloqueImagen}
       <p class="titulo-prod">${escapar(titulo)}</p>
       <p class="pvp">${formatearPrecio(datos.pvp)}</p>
     `;
@@ -280,6 +290,16 @@ async function procesarCodigo(codigo) {
     console.error(error);
     const mensaje = limpiarTexto(error.message || String(error));
     infoProducto.innerHTML = `<p>No se pudo obtener el PVP automaticamente.</p><p style="margin-top:10px;font-size:.9rem">${escapar(mensaje)}</p><p style="margin-top:10px;font-size:.85rem;opacity:.75">Comprueba el Worker abriendolo con <code>?ean=${codigo}</code>.</p>`;
+  }
+}
+
+function urlSegura(valor) {
+  try {
+    const url = new URL(String(valor || ''), 'https://comicstores.es/');
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+    return url.href;
+  } catch (_) {
+    return '';
   }
 }
 
