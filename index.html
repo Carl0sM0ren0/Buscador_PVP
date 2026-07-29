@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#1a1a2e">
   <link rel="manifest" href="manifest.json">
-  <title>PVP Comic Stores v1.3</title>
+  <title>PVP Comic Stores v1.4</title>
   <link rel="stylesheet" href="estilos.css">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
@@ -15,50 +15,53 @@
   <div class="contenedor">
     <header>
       <h1>PVP Comic Stores</h1>
-      <p class="subtitulo">Escanea o escribe el código → obtén el PVP</p>
-      <p style="font-size:0.75rem; opacity:0.5; margin-top:4px;">versión 1.3</p>
+      <p class="subtitulo">Escribe o fotografía el código → obtén el PVP</p>
+      <p style="font-size:0.75rem; opacity:0.5; margin-top:4px;">versión 1.4</p>
     </header>
 
     <div id="zona-escaner">
-      <div id="lector"></div>
-
-      <button id="btn-escanear" class="btn-principal">📷 Iniciar cámara</button>
-      <button id="btn-parar" class="btn-secundario" style="display:none">Detener cámara</button>
-
-      <!-- Botón de foto (método más compatible con iOS) -->
-      <div style="margin-top: 16px; text-align: center;">
-        <label for="input-foto" class="btn-secundario" style="display:inline-block; padding:14px 20px; cursor:pointer;">
-          📸 Hacer foto del código
-        </label>
-        <input type="file" id="input-foto" accept="image/*" capture="environment" style="display:none;">
-      </div>
-
-      <!-- Entrada manual -->
-      <div style="margin-top: 24px; text-align: center; border-top: 1px solid #333; padding-top: 20px;">
-        <p style="font-size: 0.9rem; opacity: 0.75; margin-bottom: 8px;">
+      <!-- Entrada manual (método principal y más fiable) -->
+      <div style="text-align:center; margin-bottom: 24px;">
+        <p style="font-size: 0.95rem; opacity: 0.8; margin-bottom: 10px;">
           Escribe el código de barras:
         </p>
         <input type="text" id="input-manual" inputmode="numeric" placeholder="Ej: 9788467962505" 
-               style="width: 100%; padding: 13px; border-radius: 10px; border: none; font-size: 1.15rem; text-align: center; background: #2a2a40; color: white;">
-        <button id="btn-manual" class="btn-principal" style="margin-top: 12px;">Buscar este código</button>
+               style="width: 100%; padding: 14px; border-radius: 10px; border: none; font-size: 1.2rem; text-align: center; background: #2a2a40; color: white;">
+        <button id="btn-manual" class="btn-principal" style="margin-top: 12px;">Buscar PVP de este código</button>
       </div>
+
+      <div style="border-top: 1px solid #333; padding-top: 20px; text-align: center;">
+        <p style="font-size: 0.9rem; opacity: 0.7; margin-bottom: 12px;">Otras opciones:</p>
+        
+        <label for="input-foto" class="btn-secundario" style="display:block; padding:14px; margin-bottom:12px; cursor:pointer;">
+          📸 Hacer foto del código
+        </label>
+        <input type="file" id="input-foto" accept="image/*" capture="environment" style="display:none;">
+
+        <button id="btn-escanear" class="btn-secundario">📷 Probar cámara en directo</button>
+        <button id="btn-parar" class="btn-secundario" style="display:none; margin-top:8px;">Detener cámara</button>
+        
+        <p style="font-size:0.8rem; opacity:0.5; margin-top:10px;">
+          Nota: la cámara en directo funciona mal en iPhone con códigos EAN. Usa mejor escribir el código o la foto.
+        </p>
+      </div>
+
+      <div id="lector" style="margin-top:16px;"></div>
     </div>
 
     <div id="resultado" class="oculto">
       <div class="tarjeta">
         <p class="codigo"><strong>Código:</strong> <span id="codigo-leido"></span></p>
-        <div id="info-producto">
-          <p class="cargando">Buscando el PVP en comicstores.es…</p>
-        </div>
-        <div class="botones-accion">
-          <a id="enlace-directo" href="#" target="_blank" class="btn-secundario" style="display:none">Ver en Comic Stores</a>
-          <button id="btn-nuevo" class="btn-principal">Escanear / buscar otro</button>
+        <div id="info-producto"></div>
+        <div class="botones-accion" style="margin-top:20px;">
+          <a id="enlace-directo" href="#" target="_blank" class="btn-secundario" style="display:none; margin-bottom:10px;">Ver en Comic Stores</a>
+          <button id="btn-nuevo" class="btn-principal">Volver / buscar otro</button>
         </div>
       </div>
     </div>
 
     <footer>
-      <p>Datos de comicstores.es · Uso personal · v1.3</p>
+      <p>Datos de comicstores.es · Uso personal · v1.4</p>
     </footer>
   </div>
 
