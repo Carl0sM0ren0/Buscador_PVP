@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#1a1a2e">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <title>PVP Comic Stores</title>
+  <link rel="stylesheet" href="estilos.css">
+  <!-- Librería de escaneo de códigos (rápida y ligera) -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+  <div class="contenedor">
+    <header>
+      <h1>PVP Comic Stores</h1>
+      <p class="subtitulo">Escanea → obtén el PVP sin descuento web</p>
+    </header>
+
+    <div id="zona-escaner">
+      <div id="lector"></div>
+      <button id="btn-escanear" class="btn-principal">📷 Escanear código de barras</button>
+      <button id="btn-parar" class="btn-secundario" style="display:none">Detener cámara</button>
+    </div>
+
+    <div id="resultado" class="oculto">
+      <div class="tarjeta">
+        <p class="codigo"><strong>Código:</strong> <span id="codigo-leido"></span></p>
+        <div id="info-producto">
+          <p class="cargando">Buscando en comicstores.es…</p>
+        </div>
+        <div class="botones-accion">
+          <a id="enlace-directo" href="#" target="_blank" class="btn-secundario" style="display:none">Ver ficha completa</a>
+          <button id="btn-nuevo" class="btn-principal">Escanear otro</button>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <p>Datos obtenidos de comicstores.es · Solo uso personal</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
