@@ -20,17 +20,26 @@
       <p class="subtitulo">Escanea → obtén el PVP sin descuento web</p>
     </header>
 
-    <div id="zona-escaner">
-      <div id="lector"></div>
-      <button id="btn-escanear" class="btn-principal">📷 Escanear código de barras</button>
-      <button id="btn-parar" class="btn-secundario" style="display:none">Detener cámara</button>
-	  <div style="margin-top: 20px; text-align: center;">
-		<p style="font-size: 0.9rem; opacity: 0.7; margin-bottom: 8px;">O escribe el código manualmente:</p>
-		<input type="text" id="input-manual" inputmode="numeric" placeholder="Ej: 978841314..." 
-         style="width: 100%; padding: 12px; border-radius: 8px; border: none; font-size: 1.1rem; text-align: center;">
-		<button id="btn-manual" class="btn-secundario" style="margin-top: 10px;">Buscar código escrito</button>
-	  </div>
-    </div>
+<div id="zona-escaner">
+  <div id="lector"></div>
+  
+  <button id="btn-escanear" class="btn-principal">📷 Iniciar cámara</button>
+  <button id="btn-parar" class="btn-secundario" style="display:none">Detener cámara</button>
+
+  <div style="margin-top: 18px; text-align: center;">
+    <button id="btn-foto" class="btn-secundario">📸 Hacer foto del código</button>
+    <input type="file" id="input-foto" accept="image/*" capture="environment" style="display:none">
+  </div>
+
+  <div style="margin-top: 22px; text-align: center; border-top: 1px solid #333; padding-top: 18px;">
+    <p style="font-size: 0.9rem; opacity: 0.75; margin-bottom: 8px;">
+      Si la cámara no detecta el código, escríbelo aquí:
+    </p>
+    <input type="text" id="input-manual" inputmode="numeric" placeholder="Ej: 9788413142567" 
+           style="width: 100%; padding: 13px; border-radius: 10px; border: none; font-size: 1.15rem; text-align: center; background: #2a2a40; color: white;">
+    <button id="btn-manual" class="btn-principal" style="margin-top: 12px;">Buscar este código</button>
+  </div>
+</div>
 
     <div id="resultado" class="oculto">
       <div class="tarjeta">
