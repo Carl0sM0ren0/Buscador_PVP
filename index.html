@@ -7,64 +7,54 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#1a1a2e">
   <link rel="manifest" href="manifest.json">
-  <title>PVP Comic Stores v1.4</title>
+  <title>PVP Comic Stores v2.0</title>
   <link rel="stylesheet" href="estilos.css">
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 </head>
 <body>
   <div class="contenedor">
     <header>
       <h1>PVP Comic Stores</h1>
-      <p class="subtitulo">Escribe o fotografía el código → obtén el PVP</p>
-      <p style="font-size:0.75rem; opacity:0.5; margin-top:4px;">versión 1.4</p>
+      <p class="subtitulo">Escanea, fotograf铆a o escribe el EAN</p>
+      <p style="font-size:.75rem;opacity:.5;margin-top:4px">versi贸n 2.0</p>
     </header>
 
     <div id="zona-escaner">
-      <!-- Entrada manual (método principal y más fiable) -->
-      <div style="text-align:center; margin-bottom: 24px;">
-        <p style="font-size: 0.95rem; opacity: 0.8; margin-bottom: 10px;">
-          Escribe el código de barras:
-        </p>
-        <input type="text" id="input-manual" inputmode="numeric" placeholder="Ej: 9788467962505" 
-               style="width: 100%; padding: 14px; border-radius: 10px; border: none; font-size: 1.2rem; text-align: center; background: #2a2a40; color: white;">
-        <button id="btn-manual" class="btn-principal" style="margin-top: 12px;">Buscar PVP de este código</button>
+      <div style="text-align:center;margin-bottom:24px">
+        <p style="font-size:.95rem;opacity:.8;margin-bottom:10px">Escribe el c贸digo de barras:</p>
+        <input type="text" id="input-manual" inputmode="numeric" autocomplete="off"
+               placeholder="Ej: 8437012332577"
+               style="width:100%;padding:14px;border-radius:10px;border:none;font-size:1.2rem;text-align:center;background:#2a2a40;color:white">
+        <button id="btn-manual" class="btn-principal" style="margin-top:12px">Buscar PVP</button>
       </div>
 
-      <div style="border-top: 1px solid #333; padding-top: 20px; text-align: center;">
-        <p style="font-size: 0.9rem; opacity: 0.7; margin-bottom: 12px;">Otras opciones:</p>
-        
-        <label for="input-foto" class="btn-secundario" style="display:block; padding:14px; margin-bottom:12px; cursor:pointer;">
-          📸 Hacer foto del código
-        </label>
-        <input type="file" id="input-foto" accept="image/*" capture="environment" style="display:none;">
+      <div style="border-top:1px solid #333;padding-top:20px;text-align:center">
+        <label for="input-foto" class="btn-secundario" style="display:block;padding:14px;margin-bottom:12px;cursor:pointer">馃摳 Fotografiar c贸digo</label>
+        <input type="file" id="input-foto" accept="image/*" capture="environment" style="display:none">
 
-        <button id="btn-escanear" class="btn-secundario">📷 Probar cámara en directo</button>
-        <button id="btn-parar" class="btn-secundario" style="display:none; margin-top:8px;">Detener cámara</button>
-        
-        <p style="font-size:0.8rem; opacity:0.5; margin-top:10px;">
-          Nota: la cámara en directo funciona mal en iPhone con códigos EAN. Usa mejor escribir el código o la foto.
-        </p>
+        <button id="btn-escanear" class="btn-secundario">馃摲 Escanear con c谩mara</button>
+        <button id="btn-parar" class="btn-secundario" style="display:none;margin-top:8px">Detener c谩mara</button>
       </div>
 
-      <div id="lector" style="margin-top:16px;"></div>
+      <div id="lector" style="margin-top:16px;display:none">
+        <video id="video" playsinline muted style="width:100%;border-radius:12px;background:#000"></video>
+        <p id="estado-camara" style="text-align:center;margin-top:10px;font-size:.9rem;opacity:.75">Apunta al c贸digo de barras y mant茅n el m贸vil quieto.</p>
+      </div>
     </div>
 
     <div id="resultado" class="oculto">
       <div class="tarjeta">
-        <p class="codigo"><strong>Código:</strong> <span id="codigo-leido"></span></p>
+        <p class="codigo"><strong>C贸digo:</strong> <span id="codigo-leido"></span></p>
         <div id="info-producto"></div>
-        <div class="botones-accion" style="margin-top:20px;">
-          <a id="enlace-directo" href="#" target="_blank" class="btn-secundario" style="display:none; margin-bottom:10px;">Ver en Comic Stores</a>
+        <div class="botones-accion" style="margin-top:20px">
+          <a id="enlace-directo" href="#" target="_blank" rel="noopener" class="btn-secundario" style="display:none;margin-bottom:10px">Ver en Comic Stores</a>
           <button id="btn-nuevo" class="btn-principal">Volver / buscar otro</button>
         </div>
       </div>
     </div>
 
-    <footer>
-      <p>Datos de comicstores.es · Uso personal · v1.4</p>
-    </footer>
+    <footer><p>Datos de comicstores.es 路 Uso interno 路 v2.0</p></footer>
   </div>
-
   <script src="app.js"></script>
 </body>
 </html>
