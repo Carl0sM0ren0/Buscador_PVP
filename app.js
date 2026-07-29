@@ -1,7 +1,5 @@
 'use strict';
 
-// IMPORTANTE: pega aquí la URL pública de tu Cloudflare Worker.
-// Ejemplo: https://buscadorpvp.carlos-moreno.workers.dev
 const API_URL = 'https://buscadorpvp.carlos-moreno.workers.dev';
 
 const zonaEscaner = document.getElementById('zona-escaner');
@@ -16,19 +14,11 @@ const estadoCamara = document.getElementById('estado-camara');
 let controlesVideo = null;
 let procesandoLectura = false;
 
-const lectorZXing = new ZXing.BrowserMultiFormatReader(
-  new Map([
-    [ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-      ZXing.BarcodeFormat.EAN_13,
-      ZXing.BarcodeFormat.EAN_8,
-      ZXing.BarcodeFormat.UPC_A,
-      ZXing.BarcodeFormat.UPC_E,
-      ZXing.BarcodeFormat.CODE_128
-    ]],
-    [ZXing.DecodeHintType.TRY_HARDER, true]
-  ]),
-  500
-);
+// @zxing/browser usa el espacio de nombres ZXingBrowser.
+const lectorZXing = new ZXingBrowser.BrowserMultiFormatReader(undefined, {
+  delayBetweenScanAttempts: 150,
+  delayBetweenScanSuccess: 600
+});
 
 document.getElementById('btn-escanear').addEventListener('click', iniciarEscaner);
 document.getElementById('btn-parar').addEventListener('click', detenerEscaner);
@@ -61,8 +51,8 @@ function buscarManual() {
 }
 
 async function iniciarEscaner() {
-  if (!window.isSecureContext) {
-    alert('La cámara solo funciona desde HTTPS. Abre la app desde GitHub Pages, no desde un archivo local.');
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    alert('La cámara necesita HTTPS y permiso de Safari.');
     return;
   }
 
@@ -73,17 +63,12 @@ async function iniciarEscaner() {
   estadoCamara.textContent = 'Solicitando permiso para usar la cámara…';
 
   try {
-    const dispositivos = await ZXing.BrowserCodeReader.listVideoInputDevices();
-    if (!dispositivos.length) throw new Error('No se encontró ninguna cámara');
-
-    // En iPhone suele ser la última cámara de la lista. Además pedimos facingMode environment.
-    const camaraTrasera = dispositivos.find(d => /back|rear|environment|trasera/i.test(d.label)) || dispositivos[dispositivos.length - 1];
-
+    // No enumeramos cámaras antes de pedir permiso: en iPhone es más fiable
+    // solicitar directamente la cámara trasera.
     controlesVideo = await lectorZXing.decodeFromConstraints(
       {
         audio: false,
         video: {
-          deviceId: camaraTrasera?.deviceId ? { exact: camaraTrasera.deviceId } : undefined,
           facingMode: { ideal: 'environment' },
           width: { ideal: 1920 },
           height: { ideal: 1080 }
@@ -98,12 +83,12 @@ async function iniciarEscaner() {
           if (navigator.vibrate) navigator.vibrate(80);
           detenerEscaner();
           procesarCodigo(codigo);
-        } else if (error && !(error instanceof ZXing.NotFoundException)) {
+        } else if (error && error.name !== 'NotFoundException') {
           console.warn('Error de lectura:', error);
         }
       }
     );
-    estadoCamara.textContent = 'Apunta al código, llena el ancho de la pantalla y evita reflejos.';
+    estadoCamara.textContent = 'Coloca las barras en horizontal, ocupa casi todo el ancho y mantén el móvil quieto.';
   } catch (error) {
     console.error(error);
     detenerEscaner();
@@ -114,7 +99,6 @@ async function iniciarEscaner() {
 function detenerEscaner() {
   try { controlesVideo?.stop(); } catch (_) {}
   controlesVideo = null;
-  try { lectorZXing.reset(); } catch (_) {}
   if (video.srcObject) {
     video.srcObject.getTracks().forEach(track => track.stop());
     video.srcObject = null;
@@ -132,21 +116,79 @@ async function escanearDesdeFoto(evento) {
   zonaEscaner.classList.add('oculto');
   resultado.classList.remove('oculto');
   codigoLeido.textContent = 'Analizando…';
-  mostrarCargando('Analizando la fotografía…');
+  mostrarCargando('Preparando y analizando la fotografía…');
 
-  const url = URL.createObjectURL(archivo);
   try {
-    const lectura = await lectorZXing.decodeFromImageUrl(url);
-    const codigo = normalizarCodigo(lectura.getText());
-    if (!esCodigoValido(codigo)) throw new Error('El código detectado no parece un EAN válido');
+    const imagen = await cargarImagen(archivo);
+    const codigo = await leerImagenConVariantes(imagen);
+    if (!esCodigoValido(codigo)) throw new Error('No se detectó un EAN válido');
     await procesarCodigo(codigo);
   } catch (error) {
     console.error(error);
     codigoLeido.textContent = 'No detectado';
-    infoProducto.innerHTML = `<p>No se ha podido reconocer el código.</p><p style="margin-top:10px;font-size:.95rem">Haz la foto en horizontal, acercándote hasta que el código ocupe casi todo el ancho, con buena luz y sin reflejos.</p>`;
-  } finally {
-    URL.revokeObjectURL(url);
+    infoProducto.innerHTML = `<p>No se ha podido reconocer el código.</p><p style="margin-top:10px;font-size:.95rem">Recorta visualmente el encuadre: barras horizontales, buena luz, sin reflejos y ocupando casi todo el ancho.</p>`;
   }
+}
+
+function cargarImagen(archivo) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(archivo);
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo abrir la imagen')); };
+    img.src = url;
+  });
+}
+
+async function leerImagenConVariantes(img) {
+  const variantes = [
+    { giro: 0, contraste: false },
+    { giro: 0, contraste: true },
+    { giro: 90, contraste: false },
+    { giro: -90, contraste: false },
+    { giro: 180, contraste: false }
+  ];
+
+  let ultimoError;
+  for (const variante of variantes) {
+    const canvas = prepararCanvas(img, variante.giro, variante.contraste);
+    try {
+      const lectura = await lectorZXing.decodeFromCanvas(canvas);
+      const codigo = normalizarCodigo(lectura.getText());
+      if (esCodigoValido(codigo)) return codigo;
+    } catch (error) {
+      ultimoError = error;
+    }
+  }
+  throw ultimoError || new Error('Código no encontrado');
+}
+
+function prepararCanvas(img, giro, altoContraste) {
+  const maxLado = 2200;
+  const escala = Math.min(1, maxLado / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.max(1, Math.round(img.naturalWidth * escala));
+  const h = Math.max(1, Math.round(img.naturalHeight * escala));
+  const intercambiar = Math.abs(giro) === 90;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = intercambiar ? h : w;
+  canvas.height = intercambiar ? w : h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate(giro * Math.PI / 180);
+  ctx.drawImage(img, -w / 2, -h / 2, w, h);
+
+  if (altoContraste) {
+    const datos = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const p = datos.data;
+    for (let i = 0; i < p.length; i += 4) {
+      const gris = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2];
+      const valor = gris < 150 ? 0 : 255;
+      p[i] = p[i + 1] = p[i + 2] = valor;
+    }
+    ctx.putImageData(datos, 0, 0);
+  }
+  return canvas;
 }
 
 async function procesarCodigo(codigo) {
@@ -157,31 +199,28 @@ async function procesarCodigo(codigo) {
   resultado.classList.remove('oculto');
   mostrarCargando('Buscando el PVP en comicstores.es…');
 
-  // Enlace de respaldo. El Worker devolverá el enlace exacto cuando encuentre el producto.
-  enlaceDirecto.href = `https://comicstores.es/`;
+  // Respaldo útil: abre una búsqueda por EAN, no la portada.
+  enlaceDirecto.href = `https://comicstores.es/busqueda/listaLibros.php?tipoBus=full&palabrasBusqueda=${encodeURIComponent(codigo)}`;
   enlaceDirecto.style.display = 'block';
 
-  if (!API_URL.startsWith('https://')) {
-    infoProducto.innerHTML = `<p><strong>Falta configurar el servidor de búsqueda.</strong></p><p style="margin-top:10px">Abre <code>app.js</code> y sustituye <code>PEGA_AQUI_LA_URL_DEL_WORKER</code> por la URL del Worker.</p>`;
-    return;
-  }
-
   try {
-    const respuesta = await fetch(`${API_URL.replace(/\/$/, '')}/?ean=${encodeURIComponent(codigo)}`, {
-      headers: { Accept: 'application/json' }
-    });
-    const datos = await respuesta.json();
+    const endpoint = `${API_URL.replace(/\/$/, '')}/?ean=${encodeURIComponent(codigo)}`;
+    const respuesta = await fetch(endpoint, { method: 'GET', mode: 'cors', cache: 'no-store' });
+    const texto = await respuesta.text();
+    let datos;
+    try { datos = JSON.parse(texto); }
+    catch (_) { throw new Error(`El Worker no devolvió JSON (HTTP ${respuesta.status})`); }
     if (!respuesta.ok) throw new Error(datos.error || `Error HTTP ${respuesta.status}`);
 
-    enlaceDirecto.href = datos.url;
+    enlaceDirecto.href = datos.url || enlaceDirecto.href;
     infoProducto.innerHTML = `
       <p class="titulo-prod">${escapar(datos.titulo)}</p>
       <p class="pvp">${formatearPrecio(datos.pvp)}</p>
-      ${datos.precioWeb ? `<p class="precio-web">Precio web: ${formatearPrecio(datos.precioWeb)}</p>` : ''}
+      ${datos.precioWeb != null ? `<p class="precio-web">Precio web: ${formatearPrecio(datos.precioWeb)}</p>` : ''}
     `;
   } catch (error) {
     console.error(error);
-    infoProducto.innerHTML = `<p>No se pudo obtener el PVP automáticamente.</p><p style="margin-top:10px;font-size:.9rem">${escapar(error.message || String(error))}</p>`;
+    infoProducto.innerHTML = `<p>No se pudo obtener el PVP automáticamente.</p><p style="margin-top:10px;font-size:.9rem">${escapar(error.message || String(error))}</p><p style="margin-top:10px;font-size:.85rem;opacity:.75">Comprueba abriendo directamente el Worker con <code>?ean=${codigo}</code>.</p>`;
   }
 }
 
@@ -190,7 +229,7 @@ function formatearPrecio(valor) {
 }
 
 function escapar(texto) {
-  return String(texto).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+  return String(texto ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 }
 
 function reiniciar() {
