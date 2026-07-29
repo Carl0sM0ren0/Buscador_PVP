@@ -14,10 +14,9 @@ const estadoCamara = document.getElementById('estado-camara');
 let controlesVideo = null;
 let procesandoLectura = false;
 
-// @zxing/browser usa el espacio de nombres ZXingBrowser.
 const lectorZXing = new ZXingBrowser.BrowserMultiFormatReader(undefined, {
-  delayBetweenScanAttempts: 150,
-  delayBetweenScanSuccess: 600
+  delayBetweenScanAttempts: 120,
+  delayBetweenScanSuccess: 700
 });
 
 document.getElementById('btn-escanear').addEventListener('click', iniciarEscaner);
@@ -37,14 +36,23 @@ function esCodigoValido(codigo) {
   return /^(\d{8}|\d{12}|\d{13})$/.test(codigo);
 }
 
+function limpiarTexto(valor) {
+  return String(valor ?? '')
+    .normalize('NFC')
+    .replace(/\uFFFD/g, '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function mostrarCargando(texto) {
-  infoProducto.innerHTML = `<div class="cargando"><div class="spinner"></div><p>${texto}</p></div>`;
+  infoProducto.innerHTML = `<div class="cargando"><div class="spinner"></div><p>${escapar(texto)}</p></div>`;
 }
 
 function buscarManual() {
   const codigo = normalizarCodigo(document.getElementById('input-manual').value);
   if (!esCodigoValido(codigo)) {
-    alert('Introduce un EAN de 8 o 13 dígitos, o un UPC de 12 dígitos.');
+    alert('Introduce un EAN de 8 o 13 digitos, o un UPC de 12 digitos.');
     return;
   }
   procesarCodigo(codigo);
@@ -52,7 +60,7 @@ function buscarManual() {
 
 async function iniciarEscaner() {
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-    alert('La cámara necesita HTTPS y permiso de Safari.');
+    alert('La camara necesita una conexion HTTPS y permiso del navegador.');
     return;
   }
 
@@ -60,40 +68,61 @@ async function iniciarEscaner() {
   lectorDiv.style.display = 'block';
   document.getElementById('btn-escanear').style.display = 'none';
   document.getElementById('btn-parar').style.display = 'block';
-  estadoCamara.textContent = 'Solicitando permiso para usar la cámara…';
+  estadoCamara.textContent = 'Solicitando permiso para usar la camara...';
 
   try {
-    // No enumeramos cámaras antes de pedir permiso: en iPhone es más fiable
-    // solicitar directamente la cámara trasera.
-    controlesVideo = await lectorZXing.decodeFromConstraints(
-      {
-        audio: false,
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        }
-      },
-      video,
-      (result, error) => {
-        if (result && !procesandoLectura) {
-          const codigo = normalizarCodigo(result.getText());
-          if (!esCodigoValido(codigo)) return;
-          procesandoLectura = true;
-          if (navigator.vibrate) navigator.vibrate(80);
-          detenerEscaner();
-          procesarCodigo(codigo);
-        } else if (error && error.name !== 'NotFoundException') {
-          console.warn('Error de lectura:', error);
-        }
-      }
-    );
-    estadoCamara.textContent = 'Coloca las barras en horizontal, ocupa casi todo el ancho y mantén el móvil quieto.';
+    controlesVideo = await abrirCamaraTrasera();
+    estadoCamara.textContent = 'Coloca las barras en horizontal, ocupa casi todo el ancho y manten el movil quieto.';
   } catch (error) {
     console.error(error);
     detenerEscaner();
-    alert(`No se pudo abrir la cámara: ${error.message || error}`);
+    alert(`No se pudo abrir la camara: ${limpiarTexto(error.message || error)}`);
   }
+}
+
+async function abrirCamaraTrasera() {
+  const callback = (result, error) => {
+    if (result && !procesandoLectura) {
+      const codigo = normalizarCodigo(result.getText());
+      if (!esCodigoValido(codigo)) return;
+      procesandoLectura = true;
+      if (navigator.vibrate) navigator.vibrate(80);
+      detenerEscaner();
+      procesarCodigo(codigo);
+    } else if (error && error.name !== 'NotFoundException') {
+      console.warn('Error de lectura:', error);
+    }
+  };
+
+  const configuraciones = [
+    {
+      audio: false,
+      video: {
+        facingMode: { exact: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
+    },
+    {
+      audio: false,
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    },
+    { audio: false, video: true }
+  ];
+
+  let ultimoError;
+  for (const constraints of configuraciones) {
+    try {
+      return await lectorZXing.decodeFromConstraints(constraints, video, callback);
+    } catch (error) {
+      ultimoError = error;
+    }
+  }
+  throw ultimoError || new Error('No hay ninguna camara disponible');
 }
 
 function detenerEscaner() {
@@ -115,22 +144,28 @@ async function escanearDesdeFoto(evento) {
 
   zonaEscaner.classList.add('oculto');
   resultado.classList.remove('oculto');
-  codigoLeido.textContent = 'Analizando…';
-  mostrarCargando('Preparando y analizando la fotografía…');
+  codigoLeido.textContent = 'Analizando...';
+  mostrarCargando('Preparando y analizando la fotografia...');
 
   try {
     const imagen = await cargarImagen(archivo);
     const codigo = await leerImagenConVariantes(imagen);
-    if (!esCodigoValido(codigo)) throw new Error('No se detectó un EAN válido');
+    if (!esCodigoValido(codigo)) throw new Error('No se detecto un EAN valido');
     await procesarCodigo(codigo);
   } catch (error) {
     console.error(error);
     codigoLeido.textContent = 'No detectado';
-    infoProducto.innerHTML = `<p>No se ha podido reconocer el código.</p><p style="margin-top:10px;font-size:.95rem">Recorta visualmente el encuadre: barras horizontales, buena luz, sin reflejos y ocupando casi todo el ancho.</p>`;
+    infoProducto.innerHTML = '<p>No se ha podido reconocer el codigo.</p><p style="margin-top:10px;font-size:.95rem">Procura que las barras esten horizontales, bien iluminadas, sin reflejos y ocupando casi todo el ancho de la foto.</p>';
   }
 }
 
-function cargarImagen(archivo) {
+async function cargarImagen(archivo) {
+  if ('createImageBitmap' in window) {
+    try {
+      return await createImageBitmap(archivo, { imageOrientation: 'from-image' });
+    } catch (_) {}
+  }
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(archivo);
@@ -142,16 +177,18 @@ function cargarImagen(archivo) {
 
 async function leerImagenConVariantes(img) {
   const variantes = [
-    { giro: 0, contraste: false },
-    { giro: 0, contraste: true },
-    { giro: 90, contraste: false },
-    { giro: -90, contraste: false },
-    { giro: 180, contraste: false }
+    { giro: 0, contraste: false, recorte: false },
+    { giro: 0, contraste: true, recorte: false },
+    { giro: 0, contraste: false, recorte: true },
+    { giro: 0, contraste: true, recorte: true },
+    { giro: 90, contraste: false, recorte: false },
+    { giro: -90, contraste: false, recorte: false },
+    { giro: 180, contraste: false, recorte: false }
   ];
 
   let ultimoError;
   for (const variante of variantes) {
-    const canvas = prepararCanvas(img, variante.giro, variante.contraste);
+    const canvas = prepararCanvas(img, variante.giro, variante.contraste, variante.recorte);
     try {
       const lectura = await lectorZXing.decodeFromCanvas(canvas);
       const codigo = normalizarCodigo(lectura.getText());
@@ -160,35 +197,57 @@ async function leerImagenConVariantes(img) {
       ultimoError = error;
     }
   }
-  throw ultimoError || new Error('Código no encontrado');
+  throw ultimoError || new Error('Codigo no encontrado');
 }
 
-function prepararCanvas(img, giro, altoContraste) {
-  const maxLado = 2200;
-  const escala = Math.min(1, maxLado / Math.max(img.naturalWidth, img.naturalHeight));
-  const w = Math.max(1, Math.round(img.naturalWidth * escala));
-  const h = Math.max(1, Math.round(img.naturalHeight * escala));
+function prepararCanvas(img, giro, altoContraste, recorteCentral) {
+  const origenW = img.naturalWidth || img.width;
+  const origenH = img.naturalHeight || img.height;
+  const maxLado = 2400;
+  const escala = Math.min(1, maxLado / Math.max(origenW, origenH));
+  const w = Math.max(1, Math.round(origenW * escala));
+  const h = Math.max(1, Math.round(origenH * escala));
   const intercambiar = Math.abs(giro) === 90;
 
-  const canvas = document.createElement('canvas');
-  canvas.width = intercambiar ? h : w;
-  canvas.height = intercambiar ? w : h;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  ctx.translate(canvas.width / 2, canvas.height / 2);
+  const canvasBase = document.createElement('canvas');
+  canvasBase.width = intercambiar ? h : w;
+  canvasBase.height = intercambiar ? w : h;
+  const ctx = canvasBase.getContext('2d', { willReadFrequently: true });
+  ctx.translate(canvasBase.width / 2, canvasBase.height / 2);
   ctx.rotate(giro * Math.PI / 180);
   ctx.drawImage(img, -w / 2, -h / 2, w, h);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
 
   if (altoContraste) {
-    const datos = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const datos = ctx.getImageData(0, 0, canvasBase.width, canvasBase.height);
     const p = datos.data;
     for (let i = 0; i < p.length; i += 4) {
       const gris = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2];
-      const valor = gris < 150 ? 0 : 255;
+      const valor = gris < 155 ? 0 : 255;
       p[i] = p[i + 1] = p[i + 2] = valor;
     }
     ctx.putImageData(datos, 0, 0);
   }
-  return canvas;
+
+  if (!recorteCentral) return canvasBase;
+
+  const recorte = document.createElement('canvas');
+  const margenX = Math.round(canvasBase.width * 0.05);
+  const margenY = Math.round(canvasBase.height * 0.22);
+  recorte.width = Math.max(1, canvasBase.width - margenX * 2);
+  recorte.height = Math.max(1, canvasBase.height - margenY * 2);
+  recorte.getContext('2d', { willReadFrequently: true }).drawImage(
+    canvasBase,
+    margenX,
+    margenY,
+    recorte.width,
+    recorte.height,
+    0,
+    0,
+    recorte.width,
+    recorte.height
+  );
+  return recorte;
 }
 
 async function procesarCodigo(codigo) {
@@ -197,9 +256,8 @@ async function procesarCodigo(codigo) {
   codigoLeido.textContent = codigo;
   zonaEscaner.classList.add('oculto');
   resultado.classList.remove('oculto');
-  mostrarCargando('Buscando el PVP en comicstores.es…');
+  mostrarCargando('Buscando el PVP en comicstores.es...');
 
-  // Respaldo útil: abre una búsqueda por EAN, no la portada.
   enlaceDirecto.href = `https://comicstores.es/busqueda/listaLibros.php?tipoBus=full&palabrasBusqueda=${encodeURIComponent(codigo)}`;
   enlaceDirecto.style.display = 'block';
 
@@ -209,27 +267,30 @@ async function procesarCodigo(codigo) {
     const texto = await respuesta.text();
     let datos;
     try { datos = JSON.parse(texto); }
-    catch (_) { throw new Error(`El Worker no devolvió JSON (HTTP ${respuesta.status})`); }
+    catch (_) { throw new Error(`El Worker no devolvio JSON (HTTP ${respuesta.status})`); }
     if (!respuesta.ok) throw new Error(datos.error || `Error HTTP ${respuesta.status}`);
 
     enlaceDirecto.href = datos.url || enlaceDirecto.href;
+    const titulo = limpiarTexto(datos.titulo) || 'Producto encontrado';
     infoProducto.innerHTML = `
-      <p class="titulo-prod">${escapar(datos.titulo)}</p>
+      <p class="titulo-prod">${escapar(titulo)}</p>
       <p class="pvp">${formatearPrecio(datos.pvp)}</p>
-      ${datos.precioWeb != null ? `<p class="precio-web">Precio web: ${formatearPrecio(datos.precioWeb)}</p>` : ''}
     `;
   } catch (error) {
     console.error(error);
-    infoProducto.innerHTML = `<p>No se pudo obtener el PVP automáticamente.</p><p style="margin-top:10px;font-size:.9rem">${escapar(error.message || String(error))}</p><p style="margin-top:10px;font-size:.85rem;opacity:.75">Comprueba abriendo directamente el Worker con <code>?ean=${codigo}</code>.</p>`;
+    const mensaje = limpiarTexto(error.message || String(error));
+    infoProducto.innerHTML = `<p>No se pudo obtener el PVP automaticamente.</p><p style="margin-top:10px;font-size:.9rem">${escapar(mensaje)}</p><p style="margin-top:10px;font-size:.85rem;opacity:.75">Comprueba el Worker abriendolo con <code>?ean=${codigo}</code>.</p>`;
   }
 }
 
 function formatearPrecio(valor) {
-  return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(Number(valor));
+  const numero = Number(valor);
+  if (!Number.isFinite(numero)) return 'Precio no disponible';
+  return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(numero);
 }
 
 function escapar(texto) {
-  return String(texto ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+  return String(texto ?? '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
 }
 
 function reiniciar() {
