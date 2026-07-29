@@ -49,3 +49,35 @@ h1 { font-size: 1.6rem; color: #ff6b6b; }
 }
 
 footer { text-align: center; margin-top: 40px; font-size: 0.75rem; opacity: 0.5; }
+
+
+.producto-imagen-wrap {
+  margin: 0 0 18px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 12px;
+  text-align: center;
+}
+.producto-imagen {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  max-height: 360px;
+  margin: 0 auto;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.producto-imagen-wrap figcaption {
+  margin-top: 8px;
+  color: #444;
+  font-size: .78rem;
+}
+.sin-imagen {
+  margin-bottom: 14px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #25253b;
+  font-size: .88rem;
+  opacity: .8;
+  text-align: center;
+}
