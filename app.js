@@ -1,3 +1,6 @@
+// PVP Comic Stores - versión 1.3
+console.log("PVP Comic Stores v1.3 cargada");
+
 let lectorHtml5 = null;
 let escaneando = false;
 
@@ -7,32 +10,23 @@ const codigoLeido = document.getElementById("codigo-leido");
 const infoProducto = document.getElementById("info-producto");
 const enlaceDirecto = document.getElementById("enlace-directo");
 
-// Eventos
+// Eventos principales
 document.getElementById("btn-escanear").addEventListener("click", iniciarEscaner);
 document.getElementById("btn-parar").addEventListener("click", detenerEscaner);
 document.getElementById("btn-nuevo").addEventListener("click", reiniciar);
 document.getElementById("btn-manual").addEventListener("click", buscarManual);
 
-// Botón de foto (arreglado para iOS)
-const btnFoto = document.getElementById("btn-foto");
-const inputFoto = document.getElementById("input-foto");
-
-if (btnFoto && inputFoto) {
-  btnFoto.addEventListener("click", () => {
-    inputFoto.value = ""; // limpiar para poder elegir la misma foto otra vez
-    inputFoto.click();
-  });
-  inputFoto.addEventListener("change", escanearDesdeFoto);
-}
+// Foto (usando label + change)
+document.getElementById("input-foto").addEventListener("change", escanearDesdeFoto);
 
 function buscarManual() {
   const codigo = document.getElementById("input-manual").value.trim().replace(/\s/g, "");
-  if (codigo.length >= 8) {
-    detenerEscaner();
-    procesarCodigo(codigo);
-  } else {
+  if (codigo.length < 8) {
     alert("Escribe un código válido (mínimo 8 dígitos)");
+    return;
   }
+  detenerEscaner();
+  procesarCodigo(codigo);
 }
 
 async function iniciarEscaner() {
@@ -47,8 +41,8 @@ async function iniciarEscaner() {
   const config = {
     fps: 15,
     qrbox: function(viewfinderWidth, viewfinderHeight) {
-      let width = Math.floor(viewfinderWidth * 0.85);
-      let height = Math.floor(width * 0.35);
+      const width = Math.floor(viewfinderWidth * 0.85);
+      const height = Math.floor(width * 0.35);
       return { width, height };
     },
     aspectRatio: 1.777778,
@@ -107,32 +101,41 @@ async function escanearDesdeFoto(e) {
   const archivo = e.target.files?.[0];
   if (!archivo) return;
 
+  // Limpiamos para poder elegir la misma foto otra vez
+  e.target.value = "";
+
   zonaEscaner.classList.add("oculto");
   resultado.classList.remove("oculto");
   infoProducto.innerHTML = `<p class="cargando">Analizando la foto…</p>`;
 
   try {
     const scanner = new Html5Qrcode("lector");
-    const codigo = await scanner.scanFile(archivo, /* showImage= */ true);
+    const codigo = await scanner.scanFile(archivo, true);
     procesarCodigo(codigo);
   } catch (err) {
     console.error(err);
     infoProducto.innerHTML = `
       <p>No se pudo leer el código en la foto.</p>
-      <p style="margin-top:10px;font-size:0.9rem">Prueba con más luz, más cerca o escribe el código a mano.</p>
+      <p style="margin-top:10px;font-size:0.9rem">
+        Prueba con más luz, más cerca o escribe el código a mano.
+      </p>
     `;
+    enlaceDirecto.style.display = "none";
   }
 }
 
 async function procesarCodigo(codigo) {
   codigo = String(codigo).trim();
   codigoLeido.textContent = codigo;
-  infoProducto.innerHTML = `<p class="cargando">Buscando en comicstores.es…</p>`;
 
-  // URL CORRECTA (la que funciona)
+  // Mensaje claro de búsqueda
+  infoProducto.innerHTML = `<p class="cargando">Buscando el PVP en comicstores.es…</p>`;
+  zonaEscaner.classList.add("oculto");
+  resultado.classList.remove("oculto");
+
   const urlBusqueda = `https://comicstores.es/busqueda/listaLibros.php?tipoBus=full&palabrasBusqueda=${encodeURIComponent(codigo)}`;
-  
-  // Varios proxies por si uno falla
+
+  // Proxies de respaldo
   const proxies = [
     `https://api.allorigins.win/raw?url=${encodeURIComponent(urlBusqueda)}`,
     `https://corsproxy.io/?${encodeURIComponent(urlBusqueda)}`
@@ -144,40 +147,42 @@ async function procesarCodigo(codigo) {
     try {
       const resp = await fetch(proxy, { signal: AbortSignal.timeout(9000) });
       if (resp.ok) {
-        html = await resp.text();
-        if (html && html.length > 500) break;
+        const texto = await resp.text();
+        if (texto && texto.length > 400) {
+          html = texto;
+          break;
+        }
       }
     } catch (e) {
-      console.warn("Proxy falló:", proxy, e);
+      console.warn("Proxy falló:", e);
     }
   }
 
-  // Siempre mostramos el enlace directo (aunque falle el parsing)
+  // Siempre mostramos el enlace
   enlaceDirecto.href = urlBusqueda;
   enlaceDirecto.style.display = "block";
-  enlaceDirecto.textContent = "Abrir búsqueda en Comic Stores";
+  enlaceDirecto.textContent = "Ver en Comic Stores";
 
   if (!html) {
-    mostrarFallback(codigo, urlBusqueda);
+    infoProducto.innerHTML = `
+      <p>No se pudo obtener el precio automáticamente.</p>
+      <p style="margin-top:10px">Código: <strong>${codigo}</strong></p>
+      <p style="margin-top:8px;font-size:0.9rem">Pulsa el botón de abajo para verlo.</p>
+    `;
     return;
   }
 
-  // Extraemos precios: busca patrones como 25,00 € **23,75 €**
-  const preciosEncontrados = [...html.matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2})\s*€/g)]
-    .map(m => m[1]);
+  // Extraemos precios
+  const precios = [...html.matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2})\s*€/g)].map(m => m[1]);
 
-  if (preciosEncontrados.length >= 1) {
-    const numeros = preciosEncontrados.map(p => 
-      parseFloat(p.replace(/\./g, "").replace(",", "."))
-    );
+  if (precios.length >= 1) {
+    const numeros = precios.map(p => parseFloat(p.replace(/\./g, "").replace(",", ".")));
     const pvp = Math.max(...numeros);
     const web = Math.min(...numeros);
 
-    // Intentamos sacar el título
     let titulo = "Producto encontrado";
-    const matchTitulo = html.match(/\[([^\]]{5,80})\]\(\/libro\//) || 
-                        html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
-    if (matchTitulo) titulo = matchTitulo[1].trim();
+    const matchTitulo = html.match(/\[([^\]]{5,90})\]\(\/libro\//) || html.match(/LOS CAZADORES[^<\n]{0,60}/i);
+    if (matchTitulo) titulo = matchTitulo[1] ? matchTitulo[1].trim() : matchTitulo[0].trim();
 
     infoProducto.innerHTML = `
       <p class="titulo-prod">${titulo}</p>
@@ -188,17 +193,10 @@ async function procesarCodigo(codigo) {
       </p>
     `;
   } else {
-    mostrarFallback(codigo, urlBusqueda);
+    infoProducto.innerHTML = `
+      <p>No se pudo leer el precio automáticamente.</p>
+      <p style="margin-top:10px">Código: <strong>${codigo}</strong></p>
+      <p style="margin-top:8px;font-size:0.9rem">Pulsa el botón de abajo para verlo en Comic Stores.</p>
+    `;
   }
-}
-
-function mostrarFallback(codigo, urlBusqueda) {
-  infoProducto.innerHTML = `
-    <p>No se pudo leer el precio automáticamente.</p>
-    <p style="margin-top:12px">Código: <strong>${codigo}</strong></p>
-    <p style="margin-top:8px;font-size:0.9rem">Pulsa el botón de abajo para verlo en Comic Stores.</p>
-  `;
-  enlaceDirecto.href = urlBusqueda || `https://comicstores.es/busqueda/listaLibros.php?tipoBus=full&palabrasBusqueda=${codigo}`;
-  enlaceDirecto.style.display = "block";
-  enlaceDirecto.textContent = "Ver en Comic Stores";
 }
