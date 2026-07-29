@@ -1,8 +1,8 @@
 'use strict';
 
 // IMPORTANTE: pega aquí la URL pública de tu Cloudflare Worker.
-// Ejemplo: https://pvp-comicstores.tuusuario.workers.dev
-const API_URL = 'buscadorpvp.carlos-moreno.workers.dev';
+// Ejemplo: https://buscadorpvp.carlos-moreno.workers.dev
+const API_URL = 'https://buscadorpvp.carlos-moreno.workers.dev';
 
 const zonaEscaner = document.getElementById('zona-escaner');
 const resultado = document.getElementById('resultado');
