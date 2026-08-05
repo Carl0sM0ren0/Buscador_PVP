@@ -256,7 +256,7 @@ async function procesarCodigo(codigo) {
   codigoLeido.textContent = codigo;
   zonaEscaner.classList.add('oculto');
   resultado.classList.remove('oculto');
-  mostrarCargando('Buscando el PVP y la imagen en comicstores.es...');
+  mostrarCargando('Buscando el PVP, el SKU y la imagen en comicstores.es...');
 
   enlaceDirecto.href = `https://comicstores.es/busqueda/listaLibros.php?tipoBus=full&palabrasBusqueda=${encodeURIComponent(codigo)}`;
   enlaceDirecto.style.display = 'block';
@@ -273,6 +273,7 @@ async function procesarCodigo(codigo) {
     enlaceDirecto.href = datos.url || enlaceDirecto.href;
     const titulo = limpiarTexto(datos.titulo) || 'Producto encontrado';
     const imagen = urlSegura(datos.imagen);
+    const sku = normalizarSku(datos.sku, datos.url);
     const bloqueImagen = imagen
       ? `<figure class="producto-imagen-wrap">
            <img class="producto-imagen" src="${escapar(imagen)}" alt="${escapar(titulo)}" loading="eager" referrerpolicy="no-referrer"
@@ -284,12 +285,25 @@ async function procesarCodigo(codigo) {
     infoProducto.innerHTML = `
       ${bloqueImagen}
       <p class="titulo-prod">${escapar(titulo)}</p>
+      <p class="sku"><strong>SKU:</strong> ${escapar(sku || 'No disponible')}</p>
       <p class="pvp">${formatearPrecio(datos.pvp)}</p>
     `;
   } catch (error) {
     console.error(error);
     const mensaje = limpiarTexto(error.message || String(error));
     infoProducto.innerHTML = `<p>No se pudo obtener el PVP automaticamente.</p><p style="margin-top:10px;font-size:.9rem">${escapar(mensaje)}</p><p style="margin-top:10px;font-size:.85rem;opacity:.75">Comprueba el Worker abriendolo con <code>?ean=${codigo}</code>.</p>`;
+  }
+}
+
+function normalizarSku(valor, productUrl) {
+  const skuDevuelto = String(valor || '').replace(/\D/g, '');
+  if (/^\d{6}$/.test(skuDevuelto)) return skuDevuelto;
+
+  try {
+    const pathname = new URL(String(productUrl || '')).pathname.replace(/\/$/, '');
+    return pathname.match(/(?:_|-)(\d{6})$/)?.[1] || '';
+  } catch (_) {
+    return '';
   }
 }
 
