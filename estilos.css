@@ -81,3 +81,5 @@ footer { text-align: center; margin-top: 40px; font-size: 0.75rem; opacity: 0.5;
   opacity: .8;
   text-align: center;
 }
+
+.sku { font-size: 1.05rem; margin: 8px 0 4px; opacity: 0.92; }
